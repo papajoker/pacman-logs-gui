@@ -7,12 +7,12 @@ arch=('any')
 license=('GPL')
 depends=('gtk3')
 makedepends=('git')
-source=('pacman-logs-gui' 'pacman-logs.py' 'pacman-logs.glade'  'alpmtransform.py' 'pacman-logs-gui.desktop')
+source=('https://github.com/papajoker/pacman-logs-gui/archive/0.1.0.tar.gz')
 noextract=()
-md5sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
 
 package() {
-  #cd "$srcdir/$pkgname"
+  cd "${srcdir}/${pkgname}-${pkgver}"
+  pwd
   mkdir -p "${pkgdir}/usr/lib/share/pacman-logs-gui"
   mkdir -p "${pkgdir}/usr/bin"
   mkdir -p "${pkgdir}/usr/share/applications"
@@ -23,3 +23,4 @@ package() {
   cp pacman-logs-gui.desktop "${pkgdir}/usr/share/applications"
 }
 
+md5sums=('16a9d6ff1c471233ba4ff355de723f82')
