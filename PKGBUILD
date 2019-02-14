@@ -21,4 +21,4 @@ package() {
   cp pacman-logs-gui.desktop "${pkgdir}/usr/share/applications"
 }
 
-md5sums=('16a9d6ff1c471233ba4ff355de723f82')
+md5sums=('7ec300e7b950cea59f89f4ca45925103')
