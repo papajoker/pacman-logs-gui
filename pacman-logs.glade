@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Generated with glade 3.22.1 -->
+<interface>
+  <requires lib="gtk+" version="3.20"/>
+  <object class="GtkImage" id="homeicon">
+    <property name="can_focus">False</property>
+    <property name="icon_name">go-home-symbolic</property>
+  </object>
+  <object class="GtkImage" id="iconabout">
+    <property name="can_focus">False</property>
+    <property name="icon_name">help-about-symbolic</property>
+  </object>
+  <object class="GtkImage" id="icondate">
+    <property name="visible">True</property>
+    <property name="can_focus">False</property>
+    <property name="icon_name">view-calendar</property>
+  </object>
+  <object class="GtkListStore" id="logstore">
+    <columns>
+      <!-- column-name date -->
+      <column type="gchararray"/>
+      <!-- column-name verb -->
+      <column type="gchararray"/>
+      <!-- column-name pkg -->
+      <column type="gchararray"/>
+      <!-- column-name version -->
+      <column type="gchararray"/>
+    </columns>
+  </object>
+  <object class="GtkWindow" id="window">
+    <property name="can_focus">False</property>
+    <property name="window_position">center</property>
+    <property name="default_width">800</property>
+    <property name="default_height">500</property>
+    <property name="icon_name">pamac</property>
+    <property name="has_resize_grip">True</property>
+    <signal name="delete-event" handler="on_delete_window" swapped="no"/>
+    <child type="titlebar">
+      <object class="GtkHeaderBar" id="headerbar">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="title">Logs pacman</property>
+        <property name="show_close_button">True</property>
+        <child>
+          <object class="GtkButton" id="home">
+            <property name="name">home</property>
+            <property name="visible">True</property>
+            <property name="sensitive">False</property>
+            <property name="can_focus">False</property>
+            <property name="receives_default">True</property>
+            <property name="tooltip_text" translatable="yes">Home</property>
+            <property name="image">homeicon</property>
+            <signal name="clicked" handler="on_home_clicked" swapped="no"/>
+          </object>
+        </child>
+        <child>
+          <object class="GtkButton" id="pickdate">
+            <property name="name">date</property>
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="receives_default">True</property>
+            <property name="tooltip_text" translatable="yes">Date</property>
+            <property name="image">icondate</property>
+            <signal name="clicked" handler="on_date_clicked" swapped="no"/>
+          </object>
+          <packing>
+            <property name="position">1</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkComboBoxText" id="verbs">
+            <property name="can_focus">False</property>
+            <items>
+              <item id="installed">Add</item>
+              <item id="upgraded">Update</item>
+              <item id="removed">Delete</item>
+            </items>
+            <signal name="changed" handler="on_verb_changed" swapped="no"/>
+          </object>
+          <packing>
+            <property name="position">2</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkSearchEntry" id="Entryd">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="primary_icon_name">view-calendar</property>
+            <property name="primary_icon_activatable">False</property>
+            <property name="primary_icon_sensitive">False</property>
+            <property name="placeholder_text" translatable="yes">date</property>
+            <signal name="search-changed" handler="on_search_changed" swapped="no"/>
+          </object>
+          <packing>
+            <property name="position">2</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkSearchEntry" id="Entry">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="primary_icon_name">edit-find-symbolic</property>
+            <property name="primary_icon_activatable">False</property>
+            <property name="primary_icon_sensitive">False</property>
+            <property name="placeholder_text" translatable="yes">package</property>
+            <signal name="search-changed" handler="on_search_changed" swapped="no"/>
+            <signal name="stop-search" handler="on_stop_search" swapped="no"/>
+          </object>
+          <packing>
+            <property name="position">4</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkButton" id="about">
+            <property name="name">about</property>
+            <property name="visible">True</property>
+            <property name="can_focus">False</property>
+            <property name="receives_default">True</property>
+            <property name="tooltip_text" translatable="yes">About</property>
+            <property name="image">iconabout</property>
+            <signal name="clicked" handler="on_action_clicked" swapped="no"/>
+          </object>
+          <packing>
+            <property name="pack_type">end</property>
+            <property name="position">1</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+    <child>
+      <object class="GtkStack" id="stack">
+        <property name="visible">True</property>
+        <property name="can_focus">False</property>
+        <property name="hexpand">True</property>
+        <property name="transition_type">crossfade</property>
+        <child>
+          <object class="GtkScrolledWindow">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="shadow_type">in</property>
+            <child>
+              <object class="GtkTreeView" id="treeview">
+                <property name="visible">True</property>
+                <property name="can_focus">True</property>
+                <property name="model">logstore</property>
+                <child internal-child="selection">
+                  <object class="GtkTreeSelection"/>
+                </child>
+              </object>
+            </child>
+          </object>
+          <packing>
+            <property name="name">homepage</property>
+          </packing>
+        </child>
+      </object>
+    </child>
+  </object>
+  <object class="GtkAboutDialog" id="aboutdialog">
+    <property name="can_focus">False</property>
+    <property name="title" translatable="yes">About</property>
+    <property name="type_hint">dialog</property>
+    <property name="transient_for">window</property>
+    <property name="program_name">Pacman Logs Gui</property>
+    <property name="version">0.1.00</property>
+    <property name="comments" translatable="yes">Welcome</property>
+    <property name="website">https://www.manjaro.fr</property>
+    <property name="website_label">GitLab</property>
+    <property name="authors">Papajoke
+Johnathan Jenkins</property>
+    <property name="logo_icon_name"/>
+    <property name="license_type">gpl-3-0</property>
+    <child>
+      <placeholder/>
+    </child>
+    <child internal-child="vbox">
+      <object class="GtkBox">
+        <property name="can_focus">True</property>
+        <property name="has_focus">True</property>
+        <property name="orientation">vertical</property>
+        <property name="spacing">2</property>
+        <child internal-child="action_area">
+          <object class="GtkButtonBox">
+            <property name="can_focus">False</property>
+            <property name="layout_style">end</property>
+          </object>
+          <packing>
+            <property name="expand">False</property>
+            <property name="fill">False</property>
+            <property name="position">0</property>
+          </packing>
+        </child>
+        <child>
+          <placeholder/>
+        </child>
+      </object>
+    </child>
+  </object>
+</interface>

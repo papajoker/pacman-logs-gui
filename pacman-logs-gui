@@ -1,0 +1,4 @@
+ #!/usr/bin/sh
+ 
+[ -d "/usr/lib/share/pacman-logs-gui" ] && cd "/usr/lib/share/pacman-logs-gui"
+python -O pacman-logs.py "$1"

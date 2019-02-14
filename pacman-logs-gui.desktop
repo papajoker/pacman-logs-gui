@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Pacman logs gui
+Icon=pamac
+Exec=pamac-logs-gui
+Terminal=false
+Type=Application
+Categories=Utility;
+StartupNotify=true
