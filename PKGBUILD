@@ -1,13 +1,13 @@
 # Maintainer: Papajoker <papajoke [at] manjaro [dot] fr>
 pkgname=pacman-logs-gui
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc="pacman logs gui gtk"
 arch=('any')
 license=('GPL')
 depends=('gtk3')
 makedepends=('git')
-source=('https://github.com/papajoker/pacman-logs-gui/archive/0.1.0.tar.gz')
+source=("https://github.com/papajoker/${pkgname}/archive/${pkgver}.tar.gz")
 
 package() {
   cd "${srcdir}/${pkgname}-${pkgver}"

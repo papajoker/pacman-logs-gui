@@ -27,7 +27,7 @@ from alpmtransform import AlpmTransform
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, GdkPixbuf
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 
 class CalDialog(Gtk.Dialog):
     '''Calendar Dialog'''
