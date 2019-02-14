@@ -25,10 +25,15 @@
       <column type="gchararray"/>
       <!-- column-name version -->
       <column type="gchararray"/>
+      <!-- column-name pict -->
+      <column type="gchararray"/>
+      <!-- column-name datelocal -->
+      <column type="gchararray"/>
     </columns>
   </object>
   <object class="GtkWindow" id="window">
     <property name="can_focus">False</property>
+    <property name="border_width">3</property>
     <property name="window_position">center</property>
     <property name="default_width">800</property>
     <property name="default_height">500</property>
@@ -68,6 +73,20 @@
           </packing>
         </child>
         <child>
+          <object class="GtkSearchEntry" id="Entryd">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="primary_icon_name">view-calendar</property>
+            <property name="primary_icon_activatable">False</property>
+            <property name="primary_icon_sensitive">False</property>
+            <property name="placeholder_text" translatable="yes">date (yyyy-mm-dd)</property>
+            <signal name="search-changed" handler="on_search_changed" swapped="no"/>
+          </object>
+          <packing>
+            <property name="position">2</property>
+          </packing>
+        </child>
+        <child>
           <object class="GtkComboBoxText" id="verbs">
             <property name="can_focus">False</property>
             <items>
@@ -82,23 +101,11 @@
           </packing>
         </child>
         <child>
-          <object class="GtkSearchEntry" id="Entryd">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="primary_icon_name">view-calendar</property>
-            <property name="primary_icon_activatable">False</property>
-            <property name="primary_icon_sensitive">False</property>
-            <property name="placeholder_text" translatable="yes">date</property>
-            <signal name="search-changed" handler="on_search_changed" swapped="no"/>
-          </object>
-          <packing>
-            <property name="position">2</property>
-          </packing>
-        </child>
-        <child>
           <object class="GtkSearchEntry" id="Entry">
             <property name="visible">True</property>
             <property name="can_focus">True</property>
+            <property name="has_focus">True</property>
+            <property name="is_focus">True</property>
             <property name="primary_icon_name">edit-find-symbolic</property>
             <property name="primary_icon_activatable">False</property>
             <property name="primary_icon_sensitive">False</property>
@@ -189,9 +196,6 @@ Johnathan Jenkins</property>
             <property name="fill">False</property>
             <property name="position">0</property>
           </packing>
-        </child>
-        <child>
-          <placeholder/>
         </child>
       </object>
     </child>

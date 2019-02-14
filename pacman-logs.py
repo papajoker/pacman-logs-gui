@@ -55,7 +55,14 @@ class MainApp:
         window = builder.get_object('window')
         self.window = window
 
-        #window = Gtk.Window(title=f"Pacman Logs Utility {__version__}", border_width=6)
+        icon = "system-software-install"
+        pix_buf24 = Gtk.IconTheme.get_default().load_icon(icon, 24, 0)
+        pix_buf32 = Gtk.IconTheme.get_default().load_icon(icon, 32, 0)
+        pix_buf48 = Gtk.IconTheme.get_default().load_icon(icon, 48, 0)
+        pix_buf64 = Gtk.IconTheme.get_default().load_icon(icon, 64, 0)
+        pix_buf96 = Gtk.IconTheme.get_default().load_icon(icon, 96, 0)
+        window.set_icon_list([pix_buf24, pix_buf32, pix_buf48, pix_buf64, pix_buf96])
+
         window.set_position(Gtk.WindowPosition.CENTER_ALWAYS)
 
         window.connect('delete-event', Gtk.main_quit)
@@ -69,6 +76,9 @@ class MainApp:
         self.entryd = builder.get_object('Entryd')
         self.entryd.connect('search-changed', self.on_search_changed)
         self.treeview = builder.get_object('treeview')
+        self.treeview.props.has_tooltip = True
+        self.treeview.connect("query-tooltip", self.query_tooltip_tree_view_cb)
+        self.treeview.get_selection().connect("changed", self.selection_changed_cb)
         self.store = builder.get_object('logstore')
         self.init_logs()
         builder.get_object('headerbar').set_title(f"Pacman Logs - {len(self.store)}")
@@ -90,32 +100,50 @@ class MainApp:
 
         # set logstore ... //GtkListStore
         self.store.clear()
-        column = Gtk.TreeViewColumn('date', Gtk.CellRendererText(), text=0)
+        column = Gtk.TreeViewColumn('Date', Gtk.CellRendererText(), text=5)
         column.set_resizable(True)
         column.set_reorderable(True)
         column.set_sort_order(Gtk.SortType.DESCENDING)
         column.set_sort_column_id(0)
         self.treeview.append_column(column)
-        column = Gtk.TreeViewColumn('Action', Gtk.CellRendererText(), text=1)
-        column.set_resizable(True)
+        column = Gtk.TreeViewColumn('Action', Gtk.CellRendererPixbuf(), icon_name=4)
+        column.set_resizable(False)
         column.set_reorderable(True)
         column.set_sort_column_id(1)
         self.treeview.append_column(column)
-        column = Gtk.TreeViewColumn('pkg', Gtk.CellRendererText(), text=2)
+        column = Gtk.TreeViewColumn('Package', Gtk.CellRendererText(), text=2)
         column.set_resizable(True)
         column.set_reorderable(True)
         column.set_sort_column_id(2)
         self.treeview.append_column(column)
-        column = Gtk.TreeViewColumn('version', Gtk.CellRendererText(), text=3)
+        column = Gtk.TreeViewColumn('Version', Gtk.CellRendererText(), text=3)
         column.set_resizable(True)
         self.treeview.append_column(column)
 
         items = log.load_json("/tmp/pacman.json.log")
         print("count logs:", len(items))
-        
+
+        icons_verb = {
+            'removed' : 'arrow-down', #'list-remove', # archive-remove
+            'installed' : "arrow-right", #'list-add',  # archive-insert
+            'reinstalled' : 'view-refresh', #media-playlist-repeat-symbolic-rtl',  # archive extract
+            'upgraded' : 'arrow-up',# 'view-refresh', # media-playlist-repeat view-refresh
+            'transaction' : 'home'
+        }
+        print(type(icons_verb, ), icons_verb)
+
         for item in reversed(items):
             if item['verb'] != 'transaction':
-                self.store.append([str(item['date'])[:-3], item['verb'], item['pkg'], item['ver']])
+                adate = item['date']
+                #adate = adate.local
+                self.store.append([
+                    str(item['date'])[:-3],
+                    item['verb'],
+                    item['pkg'],
+                    item['ver'],
+                    icons_verb.get(item['verb'], 'home'),
+                    item['date'].strftime('%c').split(' ', 1)[1][:-4]      # local format date
+                ])
         items = None
         self.filter = self.store.filter_new()
         self.filter.set_visible_func(self.filter_func)
@@ -134,6 +162,22 @@ class MainApp:
         if current_filter:
             result = current_filter in model[iter][0]
         return result
+
+    def query_tooltip_tree_view_cb(self, widget, x, y, keyboard_tip, tooltip):
+        """tootips action"""
+        if not widget.get_tooltip_context(x, y, keyboard_tip):
+            return False
+        else:
+            ok, x, y, model, path, iter = widget.get_tooltip_context(x, y, keyboard_tip)
+            if model:
+                value = model.get(iter, 1)
+                tooltip.set_text(value[0])
+                widget.set_tooltip_row(tooltip, path)
+                return True
+        return False
+
+    def selection_changed_cb(self, selection):
+        self.treeview.trigger_tooltip_query()
 
     @staticmethod
     def on_main_window_destroy(widget):
