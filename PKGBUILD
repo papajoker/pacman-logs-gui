@@ -1,6 +1,6 @@
 # Maintainer: Papajoker <papajoke [at] manjaro [dot] fr>
 pkgname=pacman-logs-gui
-pkgver=0.2.0
+pkgver=0.3.0
 pkgrel=1
 pkgdesc="pacman logs gui gtk"
 arch=('any')
@@ -21,4 +21,4 @@ package() {
   cp pacman-logs-gui.desktop "${pkgdir}/usr/share/applications"
 }
 
-md5sums=('7ec300e7b950cea59f89f4ca45925103')
+md5sums=('SKIP')

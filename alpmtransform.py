@@ -22,9 +22,7 @@ filesystem: 750  package: 755
 import json
 import datetime
 
-good_verbs = ['transaction', 'removed', 'installed', 'reinstalled', 'upgraded']
-# not warning: ? add for find .pacsave$
-
+good_verbs = ['transaction', 'removed', 'installed', 'reinstalled', 'upgraded', 'warning:']
 
 class AlpmTransform:
     """
@@ -58,6 +56,17 @@ class AlpmTransform:
                 diffdate = datetime.datetime.today() - logdate
                 # only last days
                 if diffdate.days > self.max_day:
+                    continue
+
+                # warning
+                if msgs[0] == good_verbs[5]:
+                    currentDict['verb'] = currentDict['verb'][:-1]
+                    currentDict['msg'] = currentDict['msg'][9:]
+                    currentDict['pkg'] = '' #FALSE is the next entry !!!
+                    currentDict['ver'] = ''
+                    if 'directory permissions differ' in currentDict['msg']:
+                        currentDict['msg'] = currentDict['msg'] + ' ' + next(log_fh).rstrip()
+                    yield currentDict
                     continue
 
                 if msgs[0] == good_verbs[4]:
@@ -97,6 +106,11 @@ class AlpmTransform:
     def load_json(self, jsonfile: str):
         with open(jsonfile) as fin:
             items = json.load(fin)
+        for item in reversed(items):
+            if item.get('pkg'):
+                pkg = item['pkg']
+            if item['verb'] == 'warning':
+                item['pkg'] = pkg
         for item in items:
             item['date'] = datetime.datetime.strptime(
                 item['date'], '%Y-%m-%d %H:%M')

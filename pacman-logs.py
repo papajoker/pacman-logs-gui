@@ -27,7 +27,7 @@ from alpmtransform import AlpmTransform
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, GdkPixbuf
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 
 class CalDialog(Gtk.Dialog):
     '''Calendar Dialog'''
@@ -128,21 +128,29 @@ class MainApp:
             'installed' : "arrow-right", #'list-add',  # archive-insert
             'reinstalled' : 'view-refresh', #media-playlist-repeat-symbolic-rtl',  # archive extract
             'upgraded' : 'arrow-up',# 'view-refresh', # media-playlist-repeat view-refresh
+            'warning' : 'dialog-warning',
             'transaction' : 'home'
         }
-        print(type(icons_verb, ), icons_verb)
-
         for item in reversed(items):
             if item['verb'] != 'transaction':
-                adate = item['date']
-                #adate = adate.local
+                msg = ''
+                warning = ''
+                if item['verb'] == 'warning':
+                    msg = item.get('msg')
+                    if msg.endswith('pacnew'):
+                        warning = ' (pacnew)'
+                    if msg.endswith('pacsave'):
+                        warning = ' (pacsave)'
+                    if msg.startswith('directory permissions'):
+                        warning = ' (chmod)'
                 self.store.append([
                     str(item['date'])[:-3],
                     item['verb'],
-                    item['pkg'],
+                    item['pkg'] + warning,
                     item['ver'],
                     icons_verb.get(item['verb'], 'home'),
-                    item['date'].strftime('%c').split(' ', 1)[1][:-4]      # local format date
+                    item['date'].strftime('%c').split(' ', 1)[1][:-4],      # local format date
+                    msg
                 ])
         items = None
         self.filter = self.store.filter_new()
@@ -170,8 +178,7 @@ class MainApp:
         else:
             ok, x, y, model, path, iter = widget.get_tooltip_context(x, y, keyboard_tip)
             if model:
-                value = model.get(iter, 1)
-                tooltip.set_text(value[0])
+                tooltip.set_text(model.get(iter, 1)[0] + ' ' + model.get(iter, 6)[0])
                 widget.set_tooltip_row(tooltip, path)
                 return True
         return False

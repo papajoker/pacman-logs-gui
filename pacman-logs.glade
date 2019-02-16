@@ -29,6 +29,8 @@
       <column type="gchararray"/>
       <!-- column-name datelocal -->
       <column type="gchararray"/>
+      <!-- column-name msg -->
+      <column type="gchararray"/>
     </columns>
   </object>
   <object class="GtkWindow" id="window">
@@ -73,20 +75,6 @@
           </packing>
         </child>
         <child>
-          <object class="GtkSearchEntry" id="Entryd">
-            <property name="visible">True</property>
-            <property name="can_focus">True</property>
-            <property name="primary_icon_name">view-calendar</property>
-            <property name="primary_icon_activatable">False</property>
-            <property name="primary_icon_sensitive">False</property>
-            <property name="placeholder_text" translatable="yes">date (yyyy-mm-dd)</property>
-            <signal name="search-changed" handler="on_search_changed" swapped="no"/>
-          </object>
-          <packing>
-            <property name="position">2</property>
-          </packing>
-        </child>
-        <child>
           <object class="GtkComboBoxText" id="verbs">
             <property name="can_focus">False</property>
             <items>
@@ -95,6 +83,20 @@
               <item id="removed">Delete</item>
             </items>
             <signal name="changed" handler="on_verb_changed" swapped="no"/>
+          </object>
+          <packing>
+            <property name="position">2</property>
+          </packing>
+        </child>
+        <child>
+          <object class="GtkSearchEntry" id="Entryd">
+            <property name="visible">True</property>
+            <property name="can_focus">True</property>
+            <property name="primary_icon_name">view-calendar</property>
+            <property name="primary_icon_activatable">False</property>
+            <property name="primary_icon_sensitive">False</property>
+            <property name="placeholder_text" translatable="yes">date (yyyy-mm-dd)</property>
+            <signal name="search-changed" handler="on_search_changed" swapped="no"/>
           </object>
           <packing>
             <property name="position">2</property>
@@ -169,7 +171,7 @@
     <property name="type_hint">dialog</property>
     <property name="transient_for">window</property>
     <property name="program_name">Pacman Logs Gui</property>
-    <property name="version">0.1.00</property>
+    <property name="version">0.3.00</property>
     <property name="comments" translatable="yes">Welcome</property>
     <property name="website">https://www.manjaro.fr</property>
     <property name="website_label">GitLab</property>
