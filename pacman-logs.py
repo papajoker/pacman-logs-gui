@@ -28,7 +28,7 @@ from alpmtransform import AlpmTransform
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, GdkPixbuf, Gdk
 
-__version__ = '0.4.1'
+__version__ = '0.4.2'
 
 class CalDialog(Gtk.Dialog):
     '''Calendar Dialog'''
@@ -207,8 +207,8 @@ class MainApp:
                 menu.append(menuitem)
 
                 action = self.actions.get_action("filter_date")
-                action.set_label("filter " + model.get(iter, 0)[0])
-                action.connect('activate', self.pop_action, 0, model.get(iter, 0)[0])
+                action.set_label("filter " + model.get(iter, 0)[0][:10])
+                action.connect('activate', self.pop_action, 0, model.get(iter, 0)[0][:10])
                 menuitem = action.create_menu_item()
                 menu.append(menuitem)
 

@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Pacman logs gui
 Icon=pamac
-Exec=pacman-logs-gui
+Exec=/usr/bin/pacman-logs-gui
 Terminal=false
 Type=Application
 Categories=Utility;
