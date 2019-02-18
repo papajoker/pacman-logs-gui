@@ -28,7 +28,7 @@ from alpmtransform import AlpmTransform
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, GdkPixbuf, Gdk
 
-__version__ = '0.4.0'
+__version__ = '0.4.1'
 
 class CalDialog(Gtk.Dialog):
     '''Calendar Dialog'''
@@ -103,8 +103,6 @@ class MainApp:
         self.treeview.connect("drag-data-get", self.on_drag_data_get)
         self.entry.drag_dest_set(Gtk.DestDefaults.ALL, target_entry, Gdk.DragAction.COPY)
         self.entry.connect("drag-data-received", self.on_drag_data_received)
-        self.entry.connect("drag-drop", self.on_drag_drop)
-        #self.entry.connect("drag-finish", self.on_drag_finish)
 
         ######self.entry.drag_dest_set(target_entry, Gdk.DragAction.COPY)
         #print(dir(self.entry.drag_dest_get_target_list()))
@@ -257,44 +255,36 @@ class MainApp:
         if action == 1:
             # filter by action ...
             self.filter_action = text
-            #self.entryd.set_text(text)
             self.filter.refilter()
 
     def on_raz(self, btn):
         self.entry.set_text('')
         self.entryd.set_text('')
-        self.filter_action = ''
+        self.filter_action = None
+        #TODO only if i change a value
+        self.filter.refilter()
+        
 
     def on_drag_data_get(self, treeview, context, selection, target_id, etime):
         treeselection = treeview.get_selection()
         model, iter = treeselection.get_selected()
         if model and iter:
             data = model.get_value(iter, 2) #+ ' * ' + model.get_value(iter, 0)
-            print('--drag:', data)
-            print('--target_id:', target_id)
+            #print('--drag:', data)
+            #print('--target_id:', target_id)
             selection.set_text(data, -1)
         else:
             selection.set_text('', -1)
-
-    def null(self, widget):
-        pass
 
     def on_drag_data_received(self, treeview, context, x, y, selection, info, etime):
         return True
         text = selection.get_text()
         self.entry.set_text('')
         if text:
-            print('--drop text:', selection.get_text())
-            print('--drop context:', context)
             print('', text.split(' * ')[0])
             # deja fait automatiquement !!!! self.entry.set_text(text.split(' * ')[0])
             #self.entry.set_focus(True)
         #self.entry.connect('search-changed', self.on_search_changed)
-
-    def on_drag_drop(self, widget, context, x, y, etime):
-        #print('--on_drag_drop :', 'ok')
-        print('--on_drag_drop :', context.list_targets()) # ret: [Gdk.Atom.intern("DI", False)]
-        return True
 
     def init_logs(self):
         """ set datas"""
