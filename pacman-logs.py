@@ -18,16 +18,17 @@
 # Authors: papajoke
 #
 
-#import os
+import os
 import sys
 import datetime
+import subprocess
 import gi
 from alpmtransform import AlpmTransform
 
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GObject, GdkPixbuf
+from gi.repository import Gtk, GObject, GdkPixbuf, Gdk
 
-__version__ = '0.3.0'
+__version__ = '0.4.0'
 
 class CalDialog(Gtk.Dialog):
     '''Calendar Dialog'''
@@ -46,6 +47,7 @@ class CalDialog(Gtk.Dialog):
     def cal_entry(self, calendar, year, month, date):
         self.value = calendar.get_date()
 
+target_entry = [] # [Gtk.TargetEntry.new('DI', 1, 50)]
 class MainApp:
 
     def __init__(self):
@@ -54,6 +56,11 @@ class MainApp:
         builder.add_from_file('pacman-logs.glade')
         window = builder.get_object('window')
         self.window = window
+
+        self.filter_action = None
+
+        #builderm = Gtk.Builder(UI_MENU)
+        #self.pop = builderm.get_object('PopupMenu')
 
         icon = "system-software-install"
         pix_buf24 = Gtk.IconTheme.get_default().load_icon(icon, 24, 0)
@@ -71,6 +78,9 @@ class MainApp:
         pickdate = builder.get_object('pickdate')
         pickdate.connect('clicked', self.on_date_clicked)
 
+        homebtn = builder.get_object('home')
+        homebtn.connect('clicked', self.on_raz)
+
         self.entry = builder.get_object('Entry')
         self.entry.connect('search-changed', self.on_search_changed)
         self.entryd = builder.get_object('Entryd')
@@ -79,13 +89,212 @@ class MainApp:
         self.treeview.props.has_tooltip = True
         self.treeview.connect("query-tooltip", self.query_tooltip_tree_view_cb)
         self.treeview.get_selection().connect("changed", self.selection_changed_cb)
+        self.treeview.props.activate_on_single_click = False
+        self.treeview.connect("row-activated", self.on_rowActivated);
         self.store = builder.get_object('logstore')
         self.init_logs()
         builder.get_object('headerbar').set_title(f"Pacman Logs - {len(self.store)}")
         window.show_all()
-        builder.get_object('home').hide()
+        #builder.get_object('home').hide()
         builder.get_object('verbs').hide()
         builder.get_object('about').hide()
+        
+        self.treeview.enable_model_drag_source(Gdk.ModifierType.BUTTON1_MASK, target_entry, Gdk.DragAction.COPY)
+        self.treeview.connect("drag-data-get", self.on_drag_data_get)
+        self.entry.drag_dest_set(Gtk.DestDefaults.ALL, target_entry, Gdk.DragAction.COPY)
+        self.entry.connect("drag-data-received", self.on_drag_data_received)
+        self.entry.connect("drag-drop", self.on_drag_drop)
+        #self.entry.connect("drag-finish", self.on_drag_finish)
+
+        ######self.entry.drag_dest_set(target_entry, Gdk.DragAction.COPY)
+        #print(dir(self.entry.drag_dest_get_target_list()))
+        #for t in self.entry.drag_dest_get_target_list():
+        #    print('drag_dest_get_target_list:',t)
+
+        self.entry.drag_dest_set_target_list(None)
+        self.entryd.drag_dest_set_target_list(None)
+        self.treeview.drag_source_set_target_list(None)
+        self.entry.drag_dest_add_text_targets()
+        #self.entryd.drag_dest_add_text_targets()
+        self.treeview.drag_source_add_text_targets()
+
+        self.treeview.connect("button-press-event", self.on_click)
+
+        self.create_actions()
+
+
+        #self.entryd.drag_dest_set(Gtk.DestDefaults.ALL, target_entry, Gdk.DragAction.COPY)
+        #self.entryd.connect("drag-data-received", self.on_drag_data_received)
+
+    def create_actions(self):
+        self.actions = Gtk.ActionGroup(name='Actions')
+
+        action = Gtk.Action(name='filter_name', label="filter by package name", tooltip=None, stock_id=Gtk.STOCK_FIND)
+        action.connect('activate', self.pop_action, 2, "pkg")
+        self.actions.add_action(action)
+
+        action = Gtk.Action(name='filter_date', label="filter by date", tooltip=None, stock_id=None)
+        action.set_icon_name('view-calendar')
+        action.connect('activate', self.pop_action, 0, "yyyy-mm-dd")
+        self.actions.add_action(action)
+
+        action = Gtk.Action(name='filter_removed', label="removed", tooltip=None, stock_id=None)
+        action.set_icon_name('arrow-down')
+        action.connect('activate', self.pop_action, 1, "removed")
+        self.actions.add_action(action)
+
+        action = Gtk.Action(name='filter_installed', label="installed", tooltip=None, stock_id=None)
+        action.set_icon_name('arrow-right')
+        action.connect('activate', self.pop_action, 1, "installed")
+        self.actions.add_action(action)
+
+        action = Gtk.Action(name='filter_reinstalled', label="reinstalled", tooltip=None, stock_id=None)
+        action.set_icon_name('view-refresh')
+        action.connect('activate', self.pop_action, 1, "reinstalled")
+        self.actions.add_action(action)
+
+        action = Gtk.Action(name='filter_upgraded', label="upgraded", tooltip=None, stock_id=None)
+        action.set_icon_name('arrow-up')
+        action.connect('activate', self.pop_action, 1, "upgraded")
+        self.actions.add_action(action)
+
+        action = Gtk.Action(name='filter_warning', label="warning", tooltip=None, stock_id=None)
+        action.set_icon_name('dialog-warning')
+        action.connect('activate', self.pop_action, 1, "warning")
+        self.actions.add_action(action)
+
+        action = Gtk.Action(name='filter_none', label="no filter", tooltip=None, stock_id=None)
+        action.connect('activate', self.on_raz)
+        self.actions.add_action(action)
+
+        # recup action pour changer label
+
+
+    def on_rowActivated(self, treeview, row, data):
+        model, iter = self.treeview.get_selection().get_selected()
+        if iter:
+            line = model.get(iter, 7)[0]
+            print('go to line:', line)
+            if os.path.isfile('/usr/bin/code'):
+                subprocess.call(f'/usr/bin/code --goto "/var/log/pacman.log:{line}"', shell=True)
+                return
+            if os.path.isfile('/usr/bin/code-insiders'):
+                subprocess.call(f'/usr/bin/code-insiders --goto "/var/log/pacman.log:{line}"', shell=True)
+                return
+            if os.path.isfile('/usr/bin/kate'):
+                subprocess.call(f"/usr/bin/kate /var/log/pacman.log --line {line}", shell=True)
+                return
+            if os.path.isfile('/usr/bin/gedit'):
+                subprocess.call(f"/usr/bin/gedit /var/log/pacman.log +{line}", shell=True)
+                return
+            if os.path.isfile('/usr/bin/leafpad'):
+                subprocess.call(f"/usr/bin/leafpad /var/log/pacman.log --jump={line}", shell=True)
+                return
+
+    def on_click(self, widget, event):
+        if event.button == 3:
+            """
+            TODO ?
+            cherche si treeview select
+            """
+            model, iter = self.treeview.get_selection().get_selected()
+            if iter:
+                print(model.get(iter, 2)[0])
+                menu = Gtk.Menu() #
+
+                action = self.actions.get_action("filter_name")
+                action.set_label("filter " + model.get(iter, 2)[0])
+                action.connect('activate', self.pop_action, 2, model.get(iter, 2)[0])
+                menuitem = action.create_menu_item()
+                menu.append(menuitem)
+
+                action = self.actions.get_action("filter_date")
+                action.set_label("filter " + model.get(iter, 0)[0])
+                action.connect('activate', self.pop_action, 0, model.get(iter, 0)[0])
+                menuitem = action.create_menu_item()
+                menu.append(menuitem)
+
+                imenu = Gtk.Menu()
+                menu_filter = Gtk.MenuItem("Action filter")
+                menu_filter.set_submenu(imenu)
+
+                action = self.actions.get_action("filter_removed")
+                menuitem = action.create_menu_item()
+                imenu.append(menuitem)
+                action = self.actions.get_action("filter_installed")
+                menuitem = action.create_menu_item()
+                imenu.append(menuitem)
+                action = self.actions.get_action("filter_reinstalled")
+                menuitem = action.create_menu_item()
+                imenu.append(menuitem)
+                action = self.actions.get_action("filter_upgraded")
+                menuitem = action.create_menu_item()
+                imenu.append(menuitem)
+
+                imenu.append(Gtk.SeparatorMenuItem())
+                action = self.actions.get_action("filter_warning")
+                menuitem = action.create_menu_item()
+                imenu.append(menuitem)
+
+                menu.append(menu_filter)
+
+                menu.append(Gtk.SeparatorMenuItem())
+                action = self.actions.get_action("filter_none")
+                menuitem = action.create_menu_item()
+                menu.append(menuitem)
+
+                menu.show_all()
+                menu.popup(None, None, None, None, event.button, event.time)
+                return True
+        return False
+
+    def pop_action(self, menuitem, action, text):
+        #print(f"pop menu filter by {action}, {text}")
+        if action == 2:
+            self.entry.set_text(text)
+        if action == 0:
+            self.entryd.set_text(text)
+        if action == 1:
+            # filter by action ...
+            self.filter_action = text
+            #self.entryd.set_text(text)
+            self.filter.refilter()
+
+    def on_raz(self, btn):
+        self.entry.set_text('')
+        self.entryd.set_text('')
+        self.filter_action = ''
+
+    def on_drag_data_get(self, treeview, context, selection, target_id, etime):
+        treeselection = treeview.get_selection()
+        model, iter = treeselection.get_selected()
+        if model and iter:
+            data = model.get_value(iter, 2) #+ ' * ' + model.get_value(iter, 0)
+            print('--drag:', data)
+            print('--target_id:', target_id)
+            selection.set_text(data, -1)
+        else:
+            selection.set_text('', -1)
+
+    def null(self, widget):
+        pass
+
+    def on_drag_data_received(self, treeview, context, x, y, selection, info, etime):
+        return True
+        text = selection.get_text()
+        self.entry.set_text('')
+        if text:
+            print('--drop text:', selection.get_text())
+            print('--drop context:', context)
+            print('', text.split(' * ')[0])
+            # deja fait automatiquement !!!! self.entry.set_text(text.split(' * ')[0])
+            #self.entry.set_focus(True)
+        #self.entry.connect('search-changed', self.on_search_changed)
+
+    def on_drag_drop(self, widget, context, x, y, etime):
+        #print('--on_drag_drop :', 'ok')
+        print('--on_drag_drop :', context.list_targets()) # ret: [Gdk.Atom.intern("DI", False)]
+        return True
 
     def init_logs(self):
         """ set datas"""
@@ -150,8 +359,10 @@ class MainApp:
                     item['ver'],
                     icons_verb.get(item['verb'], 'home'),
                     item['date'].strftime('%c').split(' ', 1)[1][:-4],      # local format date
-                    msg
+                    msg,
+                    item['l']
                 ])
+
         items = None
         self.filter = self.store.filter_new()
         self.filter.set_visible_func(self.filter_func)
@@ -169,6 +380,11 @@ class MainApp:
         current_filter = str(self.entryd.props.text)
         if current_filter:
             result = current_filter in model[iter][0]
+            if not result:
+                return False
+        current_filter = self.filter_action
+        if current_filter:
+            result = current_filter == model[iter][1]
         return result
 
     def query_tooltip_tree_view_cb(self, widget, x, y, keyboard_tip, tooltip):

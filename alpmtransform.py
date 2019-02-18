@@ -35,7 +35,9 @@ class AlpmTransform:
     def generate_dicts(self, log_fh):
         """parse logs"""
         currentDict = {}
+        i = 0
         for line in log_fh:
+            i += 1
             if '[ALPM]' in line:
                 msg = line.split("] ", 2)[-1].strip()
                 msgs = msg.split(" ")
@@ -49,6 +51,7 @@ class AlpmTransform:
                     "verb": msgs[0],
                     "pkg": msgs[1],
                     "ver": msgs[2:],
+                    "l": i
                 }
 
                 logdate = datetime.datetime.strptime(
@@ -66,6 +69,7 @@ class AlpmTransform:
                     currentDict['ver'] = ''
                     if 'directory permissions differ' in currentDict['msg']:
                         currentDict['msg'] = currentDict['msg'] + ' ' + next(log_fh).rstrip()
+                        i += 1
                     yield currentDict
                     continue
 
