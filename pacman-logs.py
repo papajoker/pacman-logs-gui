@@ -399,7 +399,15 @@ class MainApp:
     def main(self):
         Gtk.main()
 
-    def on_search_changed(self, GtkSearchEntry):
+    def on_search_changed(self, entry):
+        if entry == self.entry:
+            txt = self.entry.get_text()
+            if txt and len(txt) < 3:
+                return
+        if entry == self.entryd:
+            txt = self.entryd.get_text()
+            if txt and len(txt) < 2:
+                return
         self.filter.refilter()
 
     def on_date_clicked(self, btn):
