@@ -29,7 +29,7 @@ from alpmtransform import AlpmTransform
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, GdkPixbuf, Gdk
 
-__version__ = '0.4.3'
+__version__ = '0.4.4'
 
 class config():
     """gui const"""
@@ -139,22 +139,15 @@ class MainApp:
         #builder.get_object('home').hide()
         builder.get_object('verbs').hide()
         builder.get_object('about').hide()
-        
+
         self.treeview.enable_model_drag_source(Gdk.ModifierType.BUTTON1_MASK, target_entry, Gdk.DragAction.COPY)
         self.treeview.connect("drag-data-get", self.on_drag_data_get)
         self.entry.drag_dest_set(Gtk.DestDefaults.ALL, target_entry, Gdk.DragAction.COPY)
-        self.entry.connect("drag-data-received", self.on_drag_data_received)
-
-        ######self.entry.drag_dest_set(target_entry, Gdk.DragAction.COPY)
-        #print(dir(self.entry.drag_dest_get_target_list()))
-        #for t in self.entry.drag_dest_get_target_list():
-        #    print('drag_dest_get_target_list:',t)
 
         self.entry.drag_dest_set_target_list(None)
         self.entryd.drag_dest_set_target_list(None)
         self.treeview.drag_source_set_target_list(None)
         self.entry.drag_dest_add_text_targets()
-        #self.entryd.drag_dest_add_text_targets()
         self.treeview.drag_source_add_text_targets()
 
         self.treeview.connect("button-press-event", self.on_click)
@@ -284,7 +277,7 @@ class MainApp:
     def pop_action(self, menuitem, action, text):
         #print(f"pop menu filter by {action}, {text}")
         if action == config.cols['pkg']:
-            self.entry.set_text(text)
+            self.entry.set_text(text+" ")
         if action == config.cols['date']:
             self.entryd.set_text(text)
         if action == config.cols['verb']:
@@ -303,10 +296,12 @@ class MainApp:
         treeselection = treeview.get_selection()
         model, iter = treeselection.get_selected()
         if model and iter:
-            data = model.get_value(iter, config.cols['pkg']) #+ ' * ' + model.get_value(iter, 0)
-            #print('--drag:', data)
+            data = model.get_value(iter, config.cols['pkg'])+" " #+ ' * ' + model.get_value(iter, 0)
             #print('--target_id:', target_id)
+            # fix dbl call by reset self.entry
+            self.entry.set_text('')
             selection.set_text(data, -1)
+            return True
         else:
             selection.set_text('', -1)
 
@@ -394,9 +389,14 @@ class MainApp:
         current_filter = str(self.entry.props.text).lower()
         result = True
         if current_filter:
-            result = current_filter in model[iter][config.cols['pkg']]
-            if not result:
-                return False
+            if current_filter.endswith(" "):
+                result = current_filter == model[iter][config.cols['pkg']]+" "
+                if not result:
+                    return False
+            else:
+                result = current_filter in model[iter][config.cols['pkg']]
+                if not result:
+                    return False
         current_filter = str(self.entryd.props.text)
         if current_filter:
             result = current_filter in model[iter][config.cols['date']]
