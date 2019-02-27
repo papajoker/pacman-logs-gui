@@ -20,6 +20,7 @@
 
 import os
 import sys
+import glob
 import datetime
 import subprocess
 import gi
@@ -28,7 +29,31 @@ from alpmtransform import AlpmTransform
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, GdkPixbuf, Gdk
 
-__version__ = '0.4.2'
+__version__ = '0.4.3'
+
+class config():
+    """gui const"""
+    # icons
+    icons_verb = {
+        'removed' : '⮜', #'list-remove', # archive-remove
+        'installed' : "⮞", #'list-add',  # archive-insert
+        'reinstalled' : '🗘', #media-playlist-repeat-symbolic-rtl',  # archive extract
+        'upgraded' : '⮝',# 'view-refresh', # media-playlist-repeat view-refresh
+        'warning' : '⚠',
+        'transaction' : '🏠'
+    }
+    # columns store for treeview
+    cols = {
+        'date':0,
+        'verb':1,
+        'pkg':2,
+        'ver':3,
+        'ico':4,
+        'datel':5,
+        'msg':6,
+        'line':7
+    }
+    log = '/var/log/pacman.log'
 
 class CalDialog(Gtk.Dialog):
     '''Calendar Dialog'''
@@ -91,6 +116,22 @@ class MainApp:
         self.treeview.get_selection().connect("changed", self.selection_changed_cb)
         self.treeview.props.activate_on_single_click = False
         self.treeview.connect("row-activated", self.on_rowActivated);
+
+        # set icon style dark/light
+        bgcolor = self.treeview.get_style_context().get_background_color(Gtk.StateType.NORMAL)
+        color = self.treeview.get_style_context().get_color(Gtk.StateType.NORMAL)
+        print('bg: ',bgcolor)
+        print('color: ', color, color.to_string())
+
+        # https://lazka.github.io/pgi-docs/Gtk-3.0/flags.html#Gtk.StateFlags
+        color = self.treeview.get_style_context().get_background_color(Gtk.StateFlags(4))
+        print('bgcolor ACTIVE: ', color, color.to_string())
+
+        if bgcolor.red < 0.5 and bgcolor.blue < 0.5:
+            print ("dark theme")
+        else:
+            print ("light theme")
+
         self.store = builder.get_object('logstore')
         self.init_logs()
         builder.get_object('headerbar').set_title(f"Pacman Logs - {len(self.store)}")
@@ -121,44 +162,42 @@ class MainApp:
         self.create_actions()
 
 
-        #self.entryd.drag_dest_set(Gtk.DestDefaults.ALL, target_entry, Gdk.DragAction.COPY)
-        #self.entryd.connect("drag-data-received", self.on_drag_data_received)
 
     def create_actions(self):
         self.actions = Gtk.ActionGroup(name='Actions')
 
         action = Gtk.Action(name='filter_name', label="filter by package name", tooltip=None, stock_id=Gtk.STOCK_FIND)
-        action.connect('activate', self.pop_action, 2, "pkg")
+        action.connect('activate', self.pop_action, config.cols['pkg'], "pkg")
         self.actions.add_action(action)
 
         action = Gtk.Action(name='filter_date', label="filter by date", tooltip=None, stock_id=None)
         action.set_icon_name('view-calendar')
-        action.connect('activate', self.pop_action, 0, "yyyy-mm-dd")
+        action.connect('activate', self.pop_action, config.cols['date'], "yyyy-mm-dd")
         self.actions.add_action(action)
 
-        action = Gtk.Action(name='filter_removed', label="removed", tooltip=None, stock_id=None)
-        action.set_icon_name('arrow-down')
-        action.connect('activate', self.pop_action, 1, "removed")
+        action = Gtk.Action(name='filter_removed', label="⮜  removed", tooltip=None, stock_id=None)
+        #action.set_icon_name(config.icons_verb['removed'])
+        action.connect('activate', self.pop_action, config.cols['verb'], "removed")
         self.actions.add_action(action)
 
-        action = Gtk.Action(name='filter_installed', label="installed", tooltip=None, stock_id=None)
-        action.set_icon_name('arrow-right')
-        action.connect('activate', self.pop_action, 1, "installed")
+        action = Gtk.Action(name='filter_installed', label="⮞  installed", tooltip=None, stock_id=None)
+        #action.set_icon_name(config.icons_verb['installed'])
+        action.connect('activate', self.pop_action, config.cols['verb'], "installed")
         self.actions.add_action(action)
 
-        action = Gtk.Action(name='filter_reinstalled', label="reinstalled", tooltip=None, stock_id=None)
-        action.set_icon_name('view-refresh')
-        action.connect('activate', self.pop_action, 1, "reinstalled")
+        action = Gtk.Action(name='filter_reinstalled', label="🗘  reinstalled", tooltip=None, stock_id=None)
+        #action.set_icon_name(config.icons_verb['reinstalled'])
+        action.connect('activate', self.pop_action, config.cols['verb'], "reinstalled")
         self.actions.add_action(action)
 
-        action = Gtk.Action(name='filter_upgraded', label="upgraded", tooltip=None, stock_id=None)
-        action.set_icon_name('arrow-up')
-        action.connect('activate', self.pop_action, 1, "upgraded")
+        action = Gtk.Action(name='filter_upgraded', label="⮝  upgraded", tooltip=None, stock_id=None)
+        #action.set_icon_name(config.icons_verb['upgraded'])
+        action.connect('activate', self.pop_action, config.cols['verb'], "upgraded")
         self.actions.add_action(action)
 
-        action = Gtk.Action(name='filter_warning', label="warning", tooltip=None, stock_id=None)
-        action.set_icon_name('dialog-warning')
-        action.connect('activate', self.pop_action, 1, "warning")
+        action = Gtk.Action(name='filter_warning', label="⚠  warning", tooltip=None, stock_id=None)
+        #action.set_icon_name(config.icons_verb['warning'])
+        action.connect('activate', self.pop_action, config.cols['verb'], "warning")
         self.actions.add_action(action)
 
         action = Gtk.Action(name='filter_none', label="no filter", tooltip=None, stock_id=None)
@@ -167,27 +206,24 @@ class MainApp:
 
         # recup action pour changer label
 
-
     def on_rowActivated(self, treeview, row, data):
         model, iter = self.treeview.get_selection().get_selected()
         if iter:
-            line = model.get(iter, 7)[0]
+            line = model.get(iter, config.cols['line'])[0]
+            command = None
             print('go to line:', line)
-            if os.path.isfile('/usr/bin/code'):
-                subprocess.call(f'/usr/bin/code --goto "/var/log/pacman.log:{line}"', shell=True)
-                return
-            if os.path.isfile('/usr/bin/code-insiders'):
-                subprocess.call(f'/usr/bin/code-insiders --goto "/var/log/pacman.log:{line}"', shell=True)
-                return
             if os.path.isfile('/usr/bin/kate'):
-                subprocess.call(f"/usr/bin/kate /var/log/pacman.log --line {line}", shell=True)
-                return
-            if os.path.isfile('/usr/bin/gedit'):
-                subprocess.call(f"/usr/bin/gedit /var/log/pacman.log +{line}", shell=True)
-                return
+                command = f"/usr/bin/kate {config.log} --line {line}"
             if os.path.isfile('/usr/bin/leafpad'):
-                subprocess.call(f"/usr/bin/leafpad /var/log/pacman.log --jump={line}", shell=True)
-                return
+                command = f"/usr/bin/leafpad {config.log} --jump={line}"
+            if os.path.isfile('/usr/bin/gedit'):
+                command = f"/usr/bin/gedit {config.log} +{line}"
+            if os.path.isfile('/usr/bin/code'):
+                command = f'/usr/bin/code --goto "{config.log}:{line}"'
+            if os.path.isfile('/usr/bin/code-insiders'):
+                command = f'/usr/bin/code-insiders --goto "{config.log}:{line}"'
+            if command:
+                subprocess.call(command, shell=True)
 
     def on_click(self, widget, event):
         if event.button == 3:
@@ -197,18 +233,17 @@ class MainApp:
             """
             model, iter = self.treeview.get_selection().get_selected()
             if iter:
-                print(model.get(iter, 2)[0])
                 menu = Gtk.Menu() #
 
                 action = self.actions.get_action("filter_name")
-                action.set_label("filter " + model.get(iter, 2)[0])
-                action.connect('activate', self.pop_action, 2, model.get(iter, 2)[0])
+                action.set_label("filter " + model.get(iter, config.cols['pkg'])[0])
+                action.connect('activate', self.pop_action, config.cols['pkg'], model.get(iter, config.cols['pkg'])[0])
                 menuitem = action.create_menu_item()
                 menu.append(menuitem)
 
                 action = self.actions.get_action("filter_date")
-                action.set_label("filter " + model.get(iter, 0)[0][:10])
-                action.connect('activate', self.pop_action, 0, model.get(iter, 0)[0][:10])
+                action.set_label("filter " + model.get(iter, config.cols['date'])[0][:10])
+                action.connect('activate', self.pop_action, config.cols['date'], model.get(iter, config.cols['date'])[0][:10])
                 menuitem = action.create_menu_item()
                 menu.append(menuitem)
 
@@ -248,11 +283,11 @@ class MainApp:
 
     def pop_action(self, menuitem, action, text):
         #print(f"pop menu filter by {action}, {text}")
-        if action == 2:
+        if action == config.cols['pkg']:
             self.entry.set_text(text)
-        if action == 0:
+        if action == config.cols['date']:
             self.entryd.set_text(text)
-        if action == 1:
+        if action == config.cols['verb']:
             # filter by action ...
             self.filter_action = text
             self.filter.refilter()
@@ -263,13 +298,12 @@ class MainApp:
         self.filter_action = None
         #TODO only if i change a value
         self.filter.refilter()
-        
 
     def on_drag_data_get(self, treeview, context, selection, target_id, etime):
         treeselection = treeview.get_selection()
         model, iter = treeselection.get_selected()
         if model and iter:
-            data = model.get_value(iter, 2) #+ ' * ' + model.get_value(iter, 0)
+            data = model.get_value(iter, config.cols['pkg']) #+ ' * ' + model.get_value(iter, 0)
             #print('--drag:', data)
             #print('--target_id:', target_id)
             selection.set_text(data, -1)
@@ -294,7 +328,7 @@ class MainApp:
                 log.max_day = int(sys.argv[1])
             except ValueError:
                 log.max_day = 60
-        log.logfile = "/var/log/pacman.log"
+        log.logfile = config.log
         log.convert("/tmp/pacman.json.log")
 
         # set logstore ... //GtkListStore
@@ -303,17 +337,21 @@ class MainApp:
         column.set_resizable(True)
         column.set_reorderable(True)
         column.set_sort_order(Gtk.SortType.DESCENDING)
-        column.set_sort_column_id(0)
+        column.set_sort_column_id(config.cols['date'])
         self.treeview.append_column(column)
-        column = Gtk.TreeViewColumn('Action', Gtk.CellRendererPixbuf(), icon_name=4)
+
+        renderer = Gtk.CellRendererText()
+        renderer.set_alignment(0.5, 0.5)
+        column = Gtk.TreeViewColumn('Action', renderer, text=4)
+        #column = Gtk.TreeViewColumn('Action', Gtk.CellRendererPixbuf(), icon_name=4)
         column.set_resizable(False)
         column.set_reorderable(True)
-        column.set_sort_column_id(1)
+        column.set_sort_column_id(config.cols['verb'])
         self.treeview.append_column(column)
         column = Gtk.TreeViewColumn('Package', Gtk.CellRendererText(), text=2)
         column.set_resizable(True)
         column.set_reorderable(True)
-        column.set_sort_column_id(2)
+        column.set_sort_column_id(config.cols['pkg'])
         self.treeview.append_column(column)
         column = Gtk.TreeViewColumn('Version', Gtk.CellRendererText(), text=3)
         column.set_resizable(True)
@@ -322,14 +360,6 @@ class MainApp:
         items = log.load_json("/tmp/pacman.json.log")
         print("count logs:", len(items))
 
-        icons_verb = {
-            'removed' : 'arrow-down', #'list-remove', # archive-remove
-            'installed' : "arrow-right", #'list-add',  # archive-insert
-            'reinstalled' : 'view-refresh', #media-playlist-repeat-symbolic-rtl',  # archive extract
-            'upgraded' : 'arrow-up',# 'view-refresh', # media-playlist-repeat view-refresh
-            'warning' : 'dialog-warning',
-            'transaction' : 'home'
-        }
         for item in reversed(items):
             if item['verb'] != 'transaction':
                 msg = ''
@@ -347,7 +377,7 @@ class MainApp:
                     item['verb'],
                     item['pkg'] + warning,
                     item['ver'],
-                    icons_verb.get(item['verb'], 'home'),
+                    ""+config.icons_verb.get(item['verb'], 'home'),
                     item['date'].strftime('%c').split(' ', 1)[1][:-4],      # local format date
                     msg,
                     item['l']
@@ -364,27 +394,50 @@ class MainApp:
         current_filter = str(self.entry.props.text).lower()
         result = True
         if current_filter:
-            result = current_filter in model[iter][2]
+            result = current_filter in model[iter][config.cols['pkg']]
             if not result:
                 return False
         current_filter = str(self.entryd.props.text)
         if current_filter:
-            result = current_filter in model[iter][0]
+            result = current_filter in model[iter][config.cols['date']]
             if not result:
                 return False
         current_filter = self.filter_action
         if current_filter:
-            result = current_filter == model[iter][1]
+            result = current_filter == model[iter][config.cols['verb']]
         return result
 
+    @staticmethod
+    def pkg_is_installed(package: str) -> (bool,str):
+        dep = ""
+        if not package:
+            return False, dep
+        dirs = glob.glob(f"/var/lib/pacman/local/{package}-[0-9]*")
+        if dirs:
+            with open(dirs[0]+"/desc", "r") as f:
+                if "%REASON%\n" in f.readlines():
+                    dep = " as dependency "
+            return True, dep
+        return False, dep
+
     def query_tooltip_tree_view_cb(self, widget, x, y, keyboard_tip, tooltip):
-        """tootips action"""
+        """tootips action, show action + msg"""
         if not widget.get_tooltip_context(x, y, keyboard_tip):
             return False
         else:
             ok, x, y, model, path, iter = widget.get_tooltip_context(x, y, keyboard_tip)
             if model:
-                tooltip.set_text(model.get(iter, 1)[0] + ' ' + model.get(iter, 6)[0])
+
+                # TODO
+                # too long, prefer action after a select and not mouse_over
+                more_txt = ''
+                pkg = model.get(iter, config.cols['pkg'])[0]
+                if pkg:
+                    is_installed, dep = self.pkg_is_installed(pkg)
+                    if is_installed:
+                        more_txt = f" (installed {dep}) "
+
+                tooltip.set_text(model.get(iter, config.cols['verb'])[0] + ' ' + more_txt + model.get(iter, config.cols['msg'])[0])
                 widget.set_tooltip_row(tooltip, path)
                 return True
         return False

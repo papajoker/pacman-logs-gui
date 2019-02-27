@@ -155,6 +155,8 @@
                 <property name="visible">True</property>
                 <property name="can_focus">True</property>
                 <property name="model">logstore</property>
+                <property name="enable_search">False</property>
+                <property name="search_column">2</property>
                 <child internal-child="selection">
                   <object class="GtkTreeSelection"/>
                 </child>

@@ -21,6 +21,7 @@ filesystem: 750  package: 755
 
 import json
 import datetime
+import glob
 
 good_verbs = ['transaction', 'removed', 'installed', 'reinstalled', 'upgraded', 'warning:']
 
@@ -110,6 +111,9 @@ class AlpmTransform:
     def load_json(self, jsonfile: str):
         with open(jsonfile) as fin:
             items = json.load(fin)
+
+        #self.set_installed(items)
+
         for item in reversed(items):
             if item.get('pkg'):
                 pkg = item['pkg']
@@ -119,3 +123,22 @@ class AlpmTransform:
             item['date'] = datetime.datetime.strptime(
                 item['date'], '%Y-%m-%d %H:%M')
         return items
+    
+    def set_installed(self, items: list):
+        # list all packages
+        for pkg in set([x.get('pkg') for x in items]):
+            if self.pkg_is_installed(pkg):
+                for p in [x for x in items if x.get('pkg') == pkg]:
+                    p['installed'] = 1
+            else:
+                for p in [x for x in items if x.get('pkg') == pkg]:
+                    p['installed'] = 0
+        return items
+
+    @staticmethod
+    def pkg_is_installed(package: str) -> bool:
+        if not package:
+            return False
+        if glob.glob(f"/var/lib/pacman/local/{package}-[0-9]*"):
+            return True
+        return False
