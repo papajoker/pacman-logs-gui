@@ -26,7 +26,7 @@ package() {
 
 pkgver() {
   cd "$srcdir/app"
-  printf "r%s.%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)" "$(date +%Y.%m.%d)"
+  printf "r%s.%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)" "$(date +%Y%m%d)"
 }
 
 md5sums=('SKIP')
