@@ -1,11 +1,13 @@
 # Maintainer: Papajoker <papajoke [at] manjaro [dot] fr>
 _pkgname=pacman-logs-gui
 pkgname=pacman-logs-gui-git
-pkgver=r14.fdc1a99.2019.03.20
+pkgver=r16.415eb1f.2019.03.20
 pkgrel=1
 pkgdesc="pacman logs gui gtk"
 arch=('any')
 license=('GPL')
+replaces=("${pkgname%-*}")
+conflicts=("${pkgname%-*}")
 depends=('gtk3')
 optdepends=('code' 'kate' 'gedit' 'leafpad')
 makedepends=('git')
