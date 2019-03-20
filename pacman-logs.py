@@ -24,25 +24,29 @@ import glob
 import datetime
 import subprocess
 import gi
-from alpmtransform import AlpmTransform
+import re
+import argparse
+#from alpmtransform import AlpmTransform
 
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, GdkPixbuf, Gdk
 
 __version__ = '0.4.4'
 
-class config():
+class AlpmLog():
     """gui const"""
     # icons
-    icons_verb = {
+    REMOVED, INSTALLED, REINSTALLED, UPGRADED, WARNING, TRANSACTION = list(range(6))
+    actions = {
         'removed' : '⮜', #'list-remove', # archive-remove
         'installed' : "⮞", #'list-add',  # archive-insert
         'reinstalled' : '🗘', #media-playlist-repeat-symbolic-rtl',  # archive extract
         'upgraded' : '⮝',# 'view-refresh', # media-playlist-repeat view-refresh
         'warning' : '⚠',
-        'transaction' : '🏠'
+        #'transaction' : '🏠'
     }
     # columns store for treeview
+    DATE, ACTION, PKG, VERSION, ICON, DATEL, MSG, LINE = list(range(8))
     cols = {
         'date':0,
         'verb':1,
@@ -53,7 +57,78 @@ class config():
         'msg':6,
         'line':7
     }
-    log = '/var/log/pacman.log'
+
+
+    def __init__(self, max_day: int = 60, log_file: str = '/var/log/pacman.log'):
+        self.max_day = max_day
+        self.log_file = log_file
+        self.items = []
+
+    def parse_log(self, log_fh):
+        """parse logs"""
+        currentDict = {}
+        good_verbs = self.list_actions()
+        regex = re.compile(r'\[(.+)\] \[ALPM\] ([a-z]+)[: | ](.*)') #[\((.+)\)|.*]
+        subregex = re.compile(r'(\S+) \((.*)\)')
+        i = 0
+        for line in log_fh:
+            i += 1
+            matchs = regex.match(line)
+            if not matchs:
+                continue
+            if matchs.lastindex < 3:
+                continue
+            if not matchs.group(2) in good_verbs:
+                continue
+
+            logdate = datetime.datetime.strptime(matchs.group(1), '%Y-%m-%d %H:%M')
+            diffdate = datetime.datetime.today() - logdate
+            # only last days
+            if diffdate.days > self.max_day:
+                continue
+
+            currentDict = {
+                "date": logdate,
+                #"type": 'ALPM',
+                "pkg": '',
+                "ver": '',
+                "verb": matchs.group(2),
+                "l": i
+            }
+
+            # warning
+            if currentDict['verb'] == "warning":
+                currentDict['msg'] = matchs.group(3)
+                if 'directory permissions differ' in currentDict['msg']:
+                    currentDict['msg'] = currentDict['msg'] + ' ' + next(log_fh).rstrip()
+                    i += 1
+                yield currentDict
+                continue
+
+            matchs = subregex.match(matchs.group(3))
+            if matchs:
+                currentDict['pkg'] = matchs.group(1)
+                currentDict['ver'] = matchs.group(2)
+                if "->" in currentDict['ver']:
+                    currentDict['ver'] = currentDict['ver'].split(" ", 2)[2]
+                yield currentDict
+
+    def load_file(self):
+        """load pacman log"""
+        with open(self.log_file) as fin:
+            self.items = list(self.parse_log(fin))
+        if self.items:
+            self.items = list(reversed(self.items))
+        return self.items
+
+    @classmethod
+    def list_actions(cls):
+        return cls.actions.keys()
+
+
+
+
+
 
 class CalDialog(Gtk.Dialog):
     '''Calendar Dialog'''
@@ -72,11 +147,15 @@ class CalDialog(Gtk.Dialog):
     def cal_entry(self, calendar, year, month, date):
         self.value = calendar.get_date()
 
+
+
+
 target_entry = [] # [Gtk.TargetEntry.new('DI', 1, 50)]
 class MainApp:
 
-    def __init__(self):
+    def __init__(self, classlog: AlpmLog):
         """main app window"""
+        self.alpm = classlog
         builder = Gtk.Builder()
         builder.add_from_file('pacman-logs.glade')
         window = builder.get_object('window')
@@ -84,8 +163,36 @@ class MainApp:
 
         self.filter_action = None
 
-        #builderm = Gtk.Builder(UI_MENU)
-        #self.pop = builderm.get_object('PopupMenu')
+        stack = builder.get_object('stack')
+        self.info = builder.get_object('info')
+        #self.info_bar_title.connect("response", self.on_remove_title_box)
+        self.title_label = Gtk.Label()
+        self.title_label.set_markup(f"texte dans info ")
+        # pack title info
+        self.stack = builder.get_object("stack")
+        self.info.pack_start(self.title_label, expand=True, fill=True, padding=0)
+        #self.stack.set_visible_child_name("page2")
+
+        scrolled_window = builder.get_object('detail')
+        viewport = Gtk.Viewport(border_width=10)
+        label = Gtk.Label(wrap=True)
+        label.set_markup(f"texte dans page <b>info</b> ")
+        viewport.add(label)
+        scrolled_window.add(viewport)
+        self.stack.set_visible_child_name("page1")
+
+        '''
+        self.info_bar_title = Gtk.InfoBar()
+        self.info_bar_title.set_message_type(Gtk.MessageType.OTHER)
+        self.info_bar_title.set_show_close_button(True)
+        self.info_bar_title.set_revealed(True)
+        
+        # title label
+        
+        # pack title info to app browser box
+        
+        logs.pack_start(self.info_bar_title)#, expand=False, fill=True, padding=0)
+        '''
 
         icon = "system-software-install"
         pix_buf24 = Gtk.IconTheme.get_default().load_icon(icon, 24, 0)
@@ -115,12 +222,12 @@ class MainApp:
         self.treeview.connect("query-tooltip", self.query_tooltip_tree_view_cb)
         self.treeview.get_selection().connect("changed", self.selection_changed_cb)
         self.treeview.props.activate_on_single_click = False
-        self.treeview.connect("row-activated", self.on_rowActivated);
+        self.treeview.connect("row-activated", self.on_rowActivated)
 
         # set icon style dark/light
         bgcolor = self.treeview.get_style_context().get_background_color(Gtk.StateType.NORMAL)
         color = self.treeview.get_style_context().get_color(Gtk.StateType.NORMAL)
-        print('bg: ',bgcolor)
+        print('bg: ', bgcolor)
         print('color: ', color, color.to_string())
 
         # https://lazka.github.io/pgi-docs/Gtk-3.0/flags.html#Gtk.StateFlags
@@ -160,37 +267,37 @@ class MainApp:
         self.actions = Gtk.ActionGroup(name='Actions')
 
         action = Gtk.Action(name='filter_name', label="filter by package name", tooltip=None, stock_id=Gtk.STOCK_FIND)
-        action.connect('activate', self.pop_action, config.cols['pkg'], "pkg")
+        action.connect('activate', self.pop_action, self.alpm.PKG, "pkg")
         self.actions.add_action(action)
 
         action = Gtk.Action(name='filter_date', label="filter by date", tooltip=None, stock_id=None)
         action.set_icon_name('view-calendar')
-        action.connect('activate', self.pop_action, config.cols['date'], "yyyy-mm-dd")
+        action.connect('activate', self.pop_action, self.alpm.DATE, "yyyy-mm-dd")
         self.actions.add_action(action)
 
         action = Gtk.Action(name='filter_removed', label="⮜  removed", tooltip=None, stock_id=None)
         #action.set_icon_name(config.icons_verb['removed'])
-        action.connect('activate', self.pop_action, config.cols['verb'], "removed")
+        action.connect('activate', self.pop_action, self.alpm.ACTION, "removed")
         self.actions.add_action(action)
 
         action = Gtk.Action(name='filter_installed', label="⮞  installed", tooltip=None, stock_id=None)
         #action.set_icon_name(config.icons_verb['installed'])
-        action.connect('activate', self.pop_action, config.cols['verb'], "installed")
+        action.connect('activate', self.pop_action, self.alpm.ACTION, "installed")
         self.actions.add_action(action)
 
         action = Gtk.Action(name='filter_reinstalled', label="🗘  reinstalled", tooltip=None, stock_id=None)
         #action.set_icon_name(config.icons_verb['reinstalled'])
-        action.connect('activate', self.pop_action, config.cols['verb'], "reinstalled")
+        action.connect('activate', self.pop_action, self.alpm.ACTION, "reinstalled")
         self.actions.add_action(action)
 
         action = Gtk.Action(name='filter_upgraded', label="⮝  upgraded", tooltip=None, stock_id=None)
         #action.set_icon_name(config.icons_verb['upgraded'])
-        action.connect('activate', self.pop_action, config.cols['verb'], "upgraded")
+        action.connect('activate', self.pop_action, self.alpm.ACTION, "upgraded")
         self.actions.add_action(action)
 
         action = Gtk.Action(name='filter_warning', label="⚠  warning", tooltip=None, stock_id=None)
         #action.set_icon_name(config.icons_verb['warning'])
-        action.connect('activate', self.pop_action, config.cols['verb'], "warning")
+        action.connect('activate', self.pop_action, self.alpm.ACTION, "warning")
         self.actions.add_action(action)
 
         action = Gtk.Action(name='filter_none', label="no filter", tooltip=None, stock_id=None)
@@ -202,19 +309,19 @@ class MainApp:
     def on_rowActivated(self, treeview, row, data):
         model, iter = self.treeview.get_selection().get_selected()
         if iter:
-            line = model.get(iter, config.cols['line'])[0]
+            line = model.get(iter, self.alpm.LINE)[0]
             command = None
             print('go to line:', line)
             if os.path.isfile('/usr/bin/kate'):
-                command = f"/usr/bin/kate {config.log} --line {line}"
+                command = f"/usr/bin/kate {self.alpm.log_file} --line {line}"
             if os.path.isfile('/usr/bin/leafpad'):
-                command = f"/usr/bin/leafpad {config.log} --jump={line}"
+                command = f"/usr/bin/leafpad {self.alpm.log_file} --jump={line}"
             if os.path.isfile('/usr/bin/gedit'):
-                command = f"/usr/bin/gedit {config.log} +{line}"
+                command = f"/usr/bin/gedit {self.alpm.log_file} +{line}"
             if os.path.isfile('/usr/bin/code'):
-                command = f'/usr/bin/code --goto "{config.log}:{line}"'
+                command = f'/usr/bin/code --goto "{self.alpm.log_file}:{line}"'
             if os.path.isfile('/usr/bin/code-insiders'):
-                command = f'/usr/bin/code-insiders --goto "{config.log}:{line}"'
+                command = f'/usr/bin/code-insiders --goto "{self.alpm.log_file}:{line}"'
             if command:
                 subprocess.call(command, shell=True)
 
@@ -229,14 +336,14 @@ class MainApp:
                 menu = Gtk.Menu() #
 
                 action = self.actions.get_action("filter_name")
-                action.set_label("filter " + model.get(iter, config.cols['pkg'])[0])
-                action.connect('activate', self.pop_action, config.cols['pkg'], model.get(iter, config.cols['pkg'])[0])
+                action.set_label("filter " + model.get(iter, self.alpm.PKG)[0])
+                action.connect('activate', self.pop_action, self.alpm.PKG, model.get(iter, self.alpm.PKG)[0])
                 menuitem = action.create_menu_item()
                 menu.append(menuitem)
 
                 action = self.actions.get_action("filter_date")
-                action.set_label("filter " + model.get(iter, config.cols['date'])[0][:10])
-                action.connect('activate', self.pop_action, config.cols['date'], model.get(iter, config.cols['date'])[0][:10])
+                action.set_label("filter " + model.get(iter, self.alpm.DATE)[0][:10])
+                action.connect('activate', self.pop_action, self.alpm.DATE, model.get(iter, self.alpm.DATE)[0][:10])
                 menuitem = action.create_menu_item()
                 menu.append(menuitem)
 
@@ -276,11 +383,11 @@ class MainApp:
 
     def pop_action(self, menuitem, action, text):
         #print(f"pop menu filter by {action}, {text}")
-        if action == config.cols['pkg']:
+        if action == self.alpm.PKG:
             self.entry.set_text(text+" ")
-        if action == config.cols['date']:
+        if action == self.alpm.DATE:
             self.entryd.set_text(text)
-        if action == config.cols['verb']:
+        if action == self.alpm.ACTION:
             # filter by action ...
             self.filter_action = text
             self.filter.refilter()
@@ -291,12 +398,13 @@ class MainApp:
         self.filter_action = None
         #TODO only if i change a value
         self.filter.refilter()
+        self.stack.set_visible_child_name("page0")
 
     def on_drag_data_get(self, treeview, context, selection, target_id, etime):
         treeselection = treeview.get_selection()
         model, iter = treeselection.get_selected()
         if model and iter:
-            data = model.get_value(iter, config.cols['pkg'])+" " #+ ' * ' + model.get_value(iter, 0)
+            data = model.get_value(iter, self.alpm.PKG)+" " #+ ' * ' + model.get_value(iter, 0)
             #print('--target_id:', target_id)
             # fix dbl call by reset self.entry
             self.entry.set_text('')
@@ -317,22 +425,13 @@ class MainApp:
 
     def init_logs(self):
         """ set datas"""
-        log = AlpmTransform()
-        if len(sys.argv) > 1:
-            try:
-                log.max_day = int(sys.argv[1])
-            except ValueError:
-                log.max_day = 60
-        log.logfile = config.log
-        log.convert("/tmp/pacman.json.log")
-
         # set logstore ... //GtkListStore
         self.store.clear()
         column = Gtk.TreeViewColumn('Date', Gtk.CellRendererText(), text=5)
         column.set_resizable(True)
         column.set_reorderable(True)
         column.set_sort_order(Gtk.SortType.DESCENDING)
-        column.set_sort_column_id(config.cols['date'])
+        column.set_sort_column_id(self.alpm.DATE)
         self.treeview.append_column(column)
 
         renderer = Gtk.CellRendererText()
@@ -341,21 +440,18 @@ class MainApp:
         #column = Gtk.TreeViewColumn('Action', Gtk.CellRendererPixbuf(), icon_name=4)
         column.set_resizable(False)
         column.set_reorderable(True)
-        column.set_sort_column_id(config.cols['verb'])
+        column.set_sort_column_id(self.alpm.ACTION)
         self.treeview.append_column(column)
         column = Gtk.TreeViewColumn('Package', Gtk.CellRendererText(), text=2)
         column.set_resizable(True)
         column.set_reorderable(True)
-        column.set_sort_column_id(config.cols['pkg'])
+        column.set_sort_column_id(self.alpm.PKG)
         self.treeview.append_column(column)
         column = Gtk.TreeViewColumn('Version', Gtk.CellRendererText(), text=3)
         column.set_resizable(True)
         self.treeview.append_column(column)
 
-        items = log.load_json("/tmp/pacman.json.log")
-        print("count logs:", len(items))
-
-        for item in reversed(items):
+        for item in self.alpm.items:
             if item['verb'] != 'transaction':
                 msg = ''
                 warning = ''
@@ -372,13 +468,13 @@ class MainApp:
                     item['verb'],
                     item['pkg'] + warning,
                     item['ver'],
-                    ""+config.icons_verb.get(item['verb'], 'home'),
+                    "" + self.alpm.actions.get(item['verb'], 'home'),
                     item['date'].strftime('%c').split(' ', 1)[1][:-4],      # local format date
                     msg,
                     item['l']
                 ])
+        self.alpm.items.clear()
 
-        items = None
         self.filter = self.store.filter_new()
         self.filter.set_visible_func(self.filter_func)
         sorted_and_filtered_model = Gtk.TreeModelSort(self.filter)
@@ -390,25 +486,25 @@ class MainApp:
         result = True
         if current_filter:
             if current_filter.endswith(" "):
-                result = current_filter == model[iter][config.cols['pkg']]+" "
+                result = current_filter == model[iter][self.alpm.PKG]+" "
                 if not result:
                     return False
             else:
-                result = current_filter in model[iter][config.cols['pkg']]
+                result = current_filter in model[iter][self.alpm.PKG]
                 if not result:
                     return False
         current_filter = str(self.entryd.props.text)
         if current_filter:
-            result = current_filter in model[iter][config.cols['date']]
+            result = current_filter in model[iter][self.alpm.DATE]
             if not result:
                 return False
         current_filter = self.filter_action
         if current_filter:
-            result = current_filter == model[iter][config.cols['verb']]
+            result = current_filter == model[iter][self.alpm.ACTION]
         return result
 
     @staticmethod
-    def pkg_is_installed(package: str) -> (bool,str):
+    def pkg_is_installed(package: str) -> (bool, str):
         dep = ""
         if not package:
             return False, dep
@@ -431,13 +527,13 @@ class MainApp:
                 # TODO
                 # too long, prefer action after a select and not mouse_over
                 more_txt = ''
-                pkg = model.get(iter, config.cols['pkg'])[0]
+                pkg = model.get(iter, self.alpm.PKG)[0]
                 if pkg:
                     is_installed, dep = self.pkg_is_installed(pkg)
                     if is_installed:
                         more_txt = f" (installed {dep}) "
 
-                tooltip.set_text(model.get(iter, config.cols['verb'])[0] + ' ' + more_txt + model.get(iter, config.cols['msg'])[0])
+                tooltip.set_text(model.get(iter, self.alpm.ACTION)[0] + ' ' + more_txt + model.get(iter, self.alpm.MSG)[0])
                 widget.set_tooltip_row(tooltip, path)
                 return True
         return False
@@ -473,8 +569,19 @@ class MainApp:
         dialog.destroy()
 
 try:
-    plog = MainApp()
-    plog.main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--days", help="history age", type=int, default=60)
+    parser.add_argument("-f", "--file", help="pacman log", type=argparse.FileType('r'), default='/var/log/pacman.log')
+    args = parser.parse_args()
+    print('days:', args.days)
+    print('log:', args.file.name)
+
+    logs = AlpmLog(max_day=args.days, log_file=args.file.name)
+    logs.load_file()
+    print("count logs:", len(logs.items))
+
+    applog = MainApp(classlog=logs)
+    applog.main()
 
 except KeyboardInterrupt:
     print("\n" + "Error: interrupted by the user.")
