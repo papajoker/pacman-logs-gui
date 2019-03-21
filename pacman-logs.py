@@ -31,17 +31,19 @@ import argparse
 gi.require_version('Gtk', '3.0')
 from gi.repository import Gtk, GObject, GdkPixbuf, Gdk
 
-__version__ = '0.4.4'
+__version__ = '0.5.0'
 
 class AlpmLog():
     """gui const"""
     # icons
     REMOVED, INSTALLED, REINSTALLED, UPGRADED, WARNING, TRANSACTION = list(range(6))
     actions = {
-        'removed' : '⮜', #'list-remove', # archive-remove
-        'installed' : "⮞", #'list-add',  # archive-insert
-        'reinstalled' : '🗘', #media-playlist-repeat-symbolic-rtl',  # archive extract
-        'upgraded' : '⮝',# 'view-refresh', # media-playlist-repeat view-refresh
+        # https://en.wikipedia.org/wiki/Mathematical_operators_and_symbols_in_Unicode
+        'removed' : '<', # æ€¶ŧ←←←↓→øþ@ßðđŋħ̉ĸłµł¢“”n·¤}]@  '⮜', #'⮜' list-remove', # archive-remove
+        'installed' : '>', #"⮞", 'list-add',  # archive-insert
+        'reinstalled' : '≫',# '🗘', #media-playlist-repeat-symbolic-rtl',  # archive extract
+        'upgraded' : '∧',#⋀∧', # ⮝',# 'view-refresh', # media-playlist-repeat view-refresh
+        'downgraded' : '∨', # ⋁∨'
         'warning' : '⚠',
         #'transaction' : '🏠'
     }
@@ -301,27 +303,27 @@ class MainApp:
         action.connect('activate', self.pop_action, self.alpm.DATE, "yyyy-mm-dd")
         self.actions.add_action(action)
 
-        action = Gtk.Action(name='filter_removed', label="⮜  removed", tooltip=None, stock_id=None)
+        action = Gtk.Action(name='filter_removed', label=self.alpm.actions['removed']+"  removed", tooltip=None, stock_id=None)
         #action.set_icon_name(config.icons_verb['removed'])
         action.connect('activate', self.pop_action, self.alpm.ACTION, "removed")
         self.actions.add_action(action)
 
-        action = Gtk.Action(name='filter_installed', label="⮞  installed", tooltip=None, stock_id=None)
+        action = Gtk.Action(name='filter_installed', label=self.alpm.actions['installed']+"  installed", tooltip=None, stock_id=None)
         #action.set_icon_name(config.icons_verb['installed'])
         action.connect('activate', self.pop_action, self.alpm.ACTION, "installed")
         self.actions.add_action(action)
 
-        action = Gtk.Action(name='filter_reinstalled', label="🗘  reinstalled", tooltip=None, stock_id=None)
+        action = Gtk.Action(name='filter_reinstalled', label=self.alpm.actions['reinstalled']+"  reinstalled", tooltip=None, stock_id=None)
         #action.set_icon_name(config.icons_verb['reinstalled'])
         action.connect('activate', self.pop_action, self.alpm.ACTION, "reinstalled")
         self.actions.add_action(action)
 
-        action = Gtk.Action(name='filter_upgraded', label="⮝  upgraded", tooltip=None, stock_id=None)
+        action = Gtk.Action(name='filter_upgraded', label=self.alpm.actions['upgraded']+"  upgraded", tooltip=None, stock_id=None)
         #action.set_icon_name(config.icons_verb['upgraded'])
         action.connect('activate', self.pop_action, self.alpm.ACTION, "upgraded")
         self.actions.add_action(action)
 
-        action = Gtk.Action(name='filter_warning', label="⚠  warning", tooltip=None, stock_id=None)
+        action = Gtk.Action(name='filter_warning', label=self.alpm.actions['warning']+"  warning", tooltip=None, stock_id=None)
         #action.set_icon_name(config.icons_verb['warning'])
         action.connect('activate', self.pop_action, self.alpm.ACTION, "warning")
         self.actions.add_action(action)
