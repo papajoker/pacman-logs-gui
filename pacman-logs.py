@@ -19,19 +19,21 @@
 #
 
 import os
-import sys
+#import sys
 import glob
 import datetime
 import subprocess
 import gi
 import re
 import argparse
+import time
+import pyalpm
 #from alpmtransform import AlpmTransform
 
 gi.require_version('Gtk', '3.0')
-from gi.repository import Gtk, GObject, GdkPixbuf, Gdk
+from gi.repository import Gtk, GObject, GdkPixbuf, Gdk, Pango
 
-__version__ = '0.5.0'
+__version__ = '0.6.0'
 
 class AlpmLog():
     """gui const"""
@@ -48,8 +50,8 @@ class AlpmLog():
         #'transaction' : '🏠'
     }
     # columns store for treeview
-    DATE, ACTION, PKG, VERSION, ICON, DATEL, MSG, LINE = list(range(8))
-    cols = {
+    DATE, ACTION, PKG, VERSION, ICON, DATEL, MSG, LINE, INSTALLED = list(range(9))
+    '''cols = {
         'date':0,
         'verb':1,
         'pkg':2,
@@ -58,13 +60,15 @@ class AlpmLog():
         'datel':5,
         'msg':6,
         'line':7
-    }
+    }'''
 
 
     def __init__(self, max_day: int = 60, log_file: str = '/var/log/pacman.log'):
         self.max_day = max_day
         self.log_file = log_file
         self.items = []
+        handle = pyalpm.Handle('/', '/var/lib/pacman')
+        self.db = handle.get_localdb()
 
     def parse_log(self, log_fh):
         """parse logs"""
@@ -95,7 +99,8 @@ class AlpmLog():
                 "pkg": '',
                 "ver": '',
                 "verb": matchs.group(2),
-                "l": i
+                "l": i,
+                'i': -1
             }
 
             # warning
@@ -121,11 +126,43 @@ class AlpmLog():
             self.items = list(self.parse_log(fin))
         if self.items:
             self.items = list(reversed(self.items))
+        self.set_pkg_status()
         return self.items
+
+    def set_pkg_status(self):
+        for item in self.items:
+            if not item['pkg']:
+                continue
+            if item['i'] == -1:
+                pkg = self.db.get_pkg(item['pkg'])
+                if pkg is None:
+                    #item['i'] = 0
+                    for i in self.items:
+                        if i['pkg'] == item['pkg']:
+                            i['i'] = 0
+                else:
+                    if pkg.reason == pyalpm.PKG_REASON_DEPEND:
+                        is_dep = 2
+                    if pkg.reason == pyalpm.PKG_REASON_EXPLICIT:
+                        is_dep = 1
+                    for i in self.items:
+                        if i['pkg'] == item['pkg']:
+                            i['i'] = is_dep
 
     @classmethod
     def list_actions(cls):
         return cls.actions.keys()
+
+    def pkg_is_installed(self, package: str) -> (bool, str):
+        dep = ''
+        pkg = self.db.get_pkg(package.split('(', 1)[0].strip())
+        if pkg:
+            if pkg.reason == pyalpm.PKG_REASON_DEPEND:
+                dep = 'dep'
+            if pkg.reason == pyalpm.PKG_REASON_EXPLICIT:
+                dep = 'ex'
+            return True, dep, pkg.desc
+        return False, dep, ''
 
     def filters(self, aname="", adate="", aaction=""):
         """
@@ -299,7 +336,9 @@ class MainApp:
         self.actions.add_action(action)
 
         action = Gtk.Action(name='filter_date', label="filter by date", tooltip=None, stock_id=None)
-        action.set_icon_name('view-calendar')
+        action.set_icon_name('appointment-new')
+        #TODO
+        #GTK: 'appointment-new' by https://developer.gnome.org/icon-naming-spec/
         action.connect('activate', self.pop_action, self.alpm.DATE, "yyyy-mm-dd")
         self.actions.add_action(action)
 
@@ -364,8 +403,8 @@ class MainApp:
                 menu = Gtk.Menu() #
 
                 action = self.actions.get_action("filter_name")
-                action.set_label("filter " + model.get(iter, self.alpm.PKG)[0])
-                action.connect('activate', self.pop_action, self.alpm.PKG, model.get(iter, self.alpm.PKG)[0])
+                action.set_label("filter " + self.clear_pkg_name(model.get(iter, self.alpm.PKG)[0]))
+                action.connect('activate', self.pop_action, self.alpm.PKG, self.clear_pkg_name(model.get(iter, self.alpm.PKG)[0]))
                 menuitem = action.create_menu_item()
                 menu.append(menuitem)
 
@@ -444,7 +483,7 @@ class MainApp:
         treeselection = treeview.get_selection()
         model, iter = treeselection.get_selected()
         if model and iter:
-            data = model.get_value(iter, self.alpm.PKG)+" " #+ ' * ' + model.get_value(iter, 0)
+            data = self.clear_pkg_name(model.get_value(iter, self.alpm.PKG))+" " #+ ' * ' + model.get_value(iter, 0)
             #print('--target_id:', target_id)
             # fix dbl call by reset self.entry
             self.entry.set_text('')
@@ -464,6 +503,15 @@ class MainApp:
         #self.entry.connect('search-changed', self.on_search_changed)
 
     def populate(self):
+        def set_pkg_name(name: str, install: int):
+            if install == 1:
+                return f"<b>{name}</b>"
+            if install == 2:
+                return f"<i>{name}</i>"
+            if install == 0:
+                return f"<s>{name}</s>"
+            return name
+
         self.store.clear()
         items = list(self.alpm.filters( adate=str(self.entryd.props.text), aname=str(self.entry.props.text).lower(), aaction=self.filter_action))
         for item in self.alpm.items:
@@ -481,12 +529,13 @@ class MainApp:
                 self.store.append([
                     str(item['date'])[:-3],
                     item['verb'],
-                    item['pkg'],
+                    set_pkg_name(item['pkg'], item['i']),
                     item['ver'] + warning,
                     "" + self.alpm.actions.get(item['verb'], 'home'),
                     item['date'].strftime('%c').split(' ', 1)[1][:-4],      # local format date
                     msg,
-                    item['l']
+                    item['l'],
+                    item['i']
                 ])
 
     def init_logs(self):
@@ -494,25 +543,32 @@ class MainApp:
         # set logstore ... //GtkListStore
         #self.store.clear()
         column = Gtk.TreeViewColumn('Date', Gtk.CellRendererText(), text=5)
-        column.set_resizable(True)
+        #column.set_resizable(True)
+        column.set_sizing(Gtk.TreeViewColumnSizing.GROW_ONLY)
         column.set_reorderable(True)
         column.set_sort_order(Gtk.SortType.DESCENDING)
         column.set_sort_column_id(self.alpm.DATE)
         self.treeview.append_column(column)
-
+        #help(Gtk.TreeViewColumnSizing)
         renderer = Gtk.CellRendererText()
         renderer.set_alignment(0.5, 0.5)
-        column = Gtk.TreeViewColumn('Action', renderer, text=4)
+        column = Gtk.TreeViewColumn('Action', renderer, text=self.alpm.ICON)
         column.set_resizable(False)
+        column.set_sizing(Gtk.TreeViewColumnSizing.GROW_ONLY)
         column.set_reorderable(True)
         column.set_sort_column_id(self.alpm.ACTION)
         self.treeview.append_column(column)
-        column = Gtk.TreeViewColumn('Package', Gtk.CellRendererText(), text=2)
+        column = Gtk.TreeViewColumn('Package', Gtk.CellRendererText(), markup=self.alpm.PKG)
         column.set_resizable(True)
+        column.set_expand(True)
         column.set_reorderable(True)
         column.set_sort_column_id(self.alpm.PKG)
         self.treeview.append_column(column)
-        column = Gtk.TreeViewColumn('Version', Gtk.CellRendererText(), text=3)
+        #column = Gtk.TreeViewColumn('*', Gtk.CellRendererText(), text=self.alpm.INSTALLED)
+        #column.set_sizing(Gtk.TreeViewColumnSizing.GROW_ONLY)
+        #column.set_expand(False)
+        #self.treeview.append_column(column)
+        column = Gtk.TreeViewColumn('Version', Gtk.CellRendererText(), text=self.alpm.VERSION)
         column.set_resizable(True)
         self.treeview.append_column(column)
 
@@ -533,11 +589,12 @@ class MainApp:
         #return True
         if current_filter:
             if current_filter.endswith(" "):
-                result = current_filter == model[iter][self.alpm.PKG]+" "
+                txt = self.clear_pkg_name(model[iter][self.alpm.PKG])
+                result = current_filter == txt+" "
                 if not result:
                     return False
             else:
-                result = current_filter in model[iter][self.alpm.PKG]
+                result = current_filter in txt
                 if not result:
                     return False
         current_filter = str(self.entryd.props.text)
@@ -550,7 +607,7 @@ class MainApp:
             result = current_filter == model[iter][self.alpm.ACTION]
         return result
 
-    @staticmethod
+    '''@staticmethod
     def pkg_is_installed(package: str) -> (bool, str):
         dep = ""
         if not package:
@@ -561,7 +618,7 @@ class MainApp:
                 if "%REASON%\n" in f.readlines():
                     dep = " as dependency "
             return True, dep
-        return False, dep
+        return False, dep'''
 
     def query_tooltip_tree_view_cb(self, widget, x, y, keyboard_tip, tooltip):
         """tootips action, show action + msg"""
@@ -574,11 +631,13 @@ class MainApp:
                 # TODO
                 # too long, prefer action after a select and not mouse_over
                 more_txt = ''
-                pkg = model.get(iter, self.alpm.PKG)[0]
+                pkg = self.clear_pkg_name(model.get(iter, self.alpm.PKG)[0])
                 if pkg:
-                    is_installed, dep = self.pkg_is_installed(pkg)
+                    is_installed, dep, desc = self.alpm.pkg_is_installed(pkg)
                     if is_installed:
-                        more_txt = f" (installed {dep}) "
+                        if dep == "dep":
+                            more_txt = f" (install as {dep}) "
+                        more_txt += f"\n{desc}"
 
                 tooltip.set_text(model.get(iter, self.alpm.ACTION)[0] + ' ' + more_txt + model.get(iter, self.alpm.MSG)[0])
                 widget.set_tooltip_row(tooltip, path)
@@ -613,16 +672,34 @@ class MainApp:
             self.entryd.set_text(tmpdate.strftime('%Y-%m-%d'))
         dialog.destroy()
 
+    @staticmethod
+    def clear_pkg_name(text: str):
+        TAG_RE = re.compile(r'<[^>]+>')
+        return TAG_RE.sub('', text)
+
+
 try:
+    print('')
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--days", help="history age", type=int, default=60)
     parser.add_argument("-f", "--file", help="pacman log", type=argparse.FileType('r'), default='/var/log/pacman.log')
+    parser.add_argument("-v", "--version", help="version", action="store_true")
     args = parser.parse_args()
+
+    if args.version:
+        db = pyalpm.Handle('/', '/var/lib/pacman').get_localdb()
+        pkg = db.get_pkg("pacman-logs-gui-git")
+        print('Version:', pkg.version)
+        exit(0)
     print('days:', args.days)
     print('log:', args.file.name)
 
     logs = AlpmLog(max_day=args.days, log_file=args.file.name)
+    t0 = time.perf_counter()
     logs.load_file()
+    print('parse log seconds: ', time.perf_counter() - t0, 's')
+    # 3.336281957999745 #ssd, python parse .desc pkg_is_installed()
+    # 0.3611748469993472 # sdd, pyalpm
     print("count logs:", len(logs.items))
 
     applog = MainApp(classlog=logs)
